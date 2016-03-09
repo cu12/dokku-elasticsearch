@@ -45,13 +45,13 @@ teardown() {
 }
 
 @test "($PLUGIN_COMMAND_PREFIX:plugin:install) success" {
-  run dokku "$PLUGIN_COMMAND_PREFIX:plugin:install" l test_plugin
-  assert_contains "${lines[*]}" "Installing test_plugin..."
+  run dokku "$PLUGIN_COMMAND_PREFIX:plugin:install" l elasticsearch/marvel/latest
+  assert_success
 }
 
 @test "($PLUGIN_COMMAND_PREFIX:plugin:install) success with url" {
-  run dokku "$PLUGIN_COMMAND_PREFIX:plugin:install" l http://dokku.me test_plugin
-  assert_contains "${lines[*]}" "Installing plugin repo"
+  run dokku "$PLUGIN_COMMAND_PREFIX:plugin:install" l https://raw.githubusercontent.com/cu12/dokku-elasticsearch/master/tests/artifacts/elasticsearch-plugin-dokku-test.zip test_plugin
+  assert_success
 }
 
 @test "($PLUGIN_COMMAND_PREFIX:restart) success" {
