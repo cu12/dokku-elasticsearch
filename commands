@@ -23,7 +23,7 @@ case "$1" in
   $PLUGIN_COMMAND_PREFIX:create)
     [[ -z $2 ]] && dokku_log_fail "Please specify a name for the service"
     [[ ! -d "$PLUGIN_DATA_ROOT/$2" ]] || dokku_log_fail "$PLUGIN_SERVICE service $2 already exists"
-    SERVICE="$2"; SERVICE_ROOT="$PLUGIN_DATA_ROOT/$SERVICE"; LINKS_FILE="$SERVICE_ROOT/LINKS"
+    SERVICE="$2"; SERVICE_ROOT="$PLUGIN_DATA_ROOT/$SERVICE"; LINKS_FILE="$SERVICE_ROOT/LINKS"; SERVICE_CONFIGURATION="$(dirname "$0")/elasticsearch.yml.template"; LOGGING_CONFIGURATION="$(dirname "$0")/logging.yml.template"
 
     if ! docker images | grep -e "^$PLUGIN_IMAGE " | grep -q " $PLUGIN_IMAGE_VERSION " ; then
       docker pull "$PLUGIN_IMAGE:$PLUGIN_IMAGE_VERSION" || dokku_log_fail "$PLUGIN_SERVICE image $PLUGIN_IMAGE:$PLUGIN_IMAGE_VERSION not found"
@@ -40,6 +40,10 @@ case "$1" in
     else
       echo "" > "$SERVICE_ROOT/ENV"
     fi
+
+    cp -f "$SERVICE_CONFIGURATION" "$SERVICE_ROOT/config/elasticsearch.yml"
+    cp -f "$LOGGING_CONFIGURATION" "$SERVICE_ROOT/config/logging.yml"
+
     SERVICE_NAME=$(get_service_name "$SERVICE")
     ID=$(docker run --name "$SERVICE_NAME" -v "$SERVICE_ROOT/data:/usr/share/elasticsearch/data" -v "$SERVICE_ROOT/config:/usr/share/elasticsearch/config" --env-file="$SERVICE_ROOT/ENV" -d --restart always --label dokku=service --label dokku.service=elasticsearch "$PLUGIN_IMAGE:$PLUGIN_IMAGE_VERSION")
     echo "$ID" > "$SERVICE_ROOT/ID"

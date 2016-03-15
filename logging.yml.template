@@ -1,0 +1,8 @@
+es.logger.level: console
+rootLogger: console
+
+logger.action: DEBUG
+
+appender:
+  console:
+    type: console
