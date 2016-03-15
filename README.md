@@ -1,6 +1,6 @@
 # dokku elasticsearch (beta) [![Build Status](https://img.shields.io/travis/dokku/dokku-elasticsearch.svg?branch=master "Build Status")](https://travis-ci.org/dokku/dokku-elasticsearch) [![IRC Network](https://img.shields.io/badge/irc-freenode-blue.svg "IRC Freenode")](https://webchat.freenode.net/?channels=dokku)
 
-Official elasticsearch plugin for dokku. Currently defaults to installing [elasticsearch 1.7.1](https://hub.docker.com/_/elasticsearch/).
+Official elasticsearch plugin for dokku. Currently defaults to installing [elasticsearch 2.1.1](https://hub.docker.com/_/elasticsearch/).
 
 ## requirements
 
@@ -22,22 +22,26 @@ dokku plugin:install https://github.com/dokku/dokku-elasticsearch.git elasticsea
 ## commands
 
 ```
-elasticsearch:alias <name> <alias>     Set an alias for the docker link
-elasticsearch:clone <name> <new-name>  NOT IMPLEMENTED
-elasticsearch:connect <name>           NOT IMPLEMENTED
-elasticsearch:create <name>            Create a elasticsearch service
-elasticsearch:destroy <name>           Delete the service and stop its container if there are no links left
-elasticsearch:export <name>            NOT IMPLEMENTED
-elasticsearch:expose <name> [port]     Expose a elasticsearch service on custom port if provided (random port otherwise)
-elasticsearch:import <name> <file>     NOT IMPLEMENTED
-elasticsearch:info <name>              Print the connection information
-elasticsearch:link <name> <app>        Link the elasticsearch service to the app
-elasticsearch:list                     List all elasticsearch services
-elasticsearch:logs <name> [-t]         Print the most recent log(s) for this service
-elasticsearch:restart <name>           Graceful shutdown and restart of the elasticsearch service container
-elasticsearch:start <name>             Start a previously stopped elasticsearch service
-elasticsearch:stop <name>              Stop a running elasticsearch service
-elasticsearch:unexpose <name>          Unexpose a previously exposed elasticsearch service
+elasticsearch:clone <name> <new-name>               NOT IMPLEMENTED
+elasticsearch:connect <name>                        NOT IMPLEMENTED
+elasticsearch:create <name>                         Create a elasticsearch service with environment variables
+elasticsearch:destroy <name>                        Delete the service and stop its container if there are no links left
+elasticsearch:export <name> > <file>                NOT IMPLEMENTED
+elasticsearch:expose <name> [port]                  Expose a elasticsearch service on custom port if provided (random port otherwise)
+elasticsearch:import <name> <file>                  NOT IMPLEMENTED
+elasticsearch:info <name>                           Print the connection information
+elasticsearch:link <name> <app>                     Link the elasticsearch service to the app
+elasticsearch:list                                  List all elasticsearch services
+elasticsearch:logs <name> [-t]                      Print the most recent log(s) for this service
+elasticsearch:plugin:install <name> [url] <plugin>  Install $PLUGIN_SERVICE plugin
+elasticsearch:plugin:uninstall <name> <plugin>      Uninstall $PLUGIN_SERVICE plugin
+elasticsearch:plugin:list <name>                    NOT IMPLEMENTED
+elasticsearch:promote <name> <app>                  Promote service <name> as ELASTICSEARCH_URL in <app>
+elasticsearch:restart <name>                        Graceful shutdown and restart of the elasticsearch service container
+elasticsearch:start <name>                          Start a previously stopped elasticsearch service
+elasticsearch:stop <name>                           Stop a running elasticsearch service
+elasticsearch:unexpose <name>                       Unexpose a previously exposed elasticsearch service
+elasticsearch:unlink <name> <app>                   Unlink the elasticsearch service from the app
 ```
 
 ## usage
@@ -52,12 +56,17 @@ dokku elasticsearch:create lolipop
 # official elasticsearch image
 export ELASTICSEARCH_IMAGE="elasticsearch"
 export ELASTICSEARCH_IMAGE_VERSION="1.6.2"
+
+# you can also specify custom environment
+# variables to start the elasticsearch service
+# in semi-colon separated forma
+export ELASTICSEARCH_CUSTOM_ENV="USER=alpha;HOST=beta"
+
+# create a elasticsearch service
 dokku elasticsearch:create lolipop
 
 # get connection information as follows
 dokku elasticsearch:info lolipop
-
-# lets assume the ip of our elasticsearch service is 172.17.0.1
 
 # a elasticsearch service can be linked to a
 # container this will use native docker
@@ -66,26 +75,53 @@ dokku elasticsearch:info lolipop
 # NOTE: this will restart your app
 dokku elasticsearch:link lolipop playground
 
-# the above will expose the following environment variables
+# the following environment variables will be set automatically by docker (not
+# on the app itself, so they won’t be listed when calling dokku config)
 #
-#   ELASTICSEARCH_URL=http://172.17.0.1:9200
-#   ELASTICSEARCH_NAME=/random_name/ELASTICSEARCH
-#   ELASTICSEARCH_PORT=tcp://172.17.0.1:9200
-#   ELASTICSEARCH_PORT_9200_TCP=tcp://172.17.0.1:9200
-#   ELASTICSEARCH_PORT_9200_TCP_PROTO=tcp
-#   ELASTICSEARCH_PORT_9200_TCP_PORT=9200
-#   ELASTICSEARCH_PORT_9200_TCP_ADDR=172.17.0.1
+#   DOKKU_ELASTICSEARCH_LOLIPOP_NAME=/random_name/ELASTICSEARCH
+#   DOKKU_ELASTICSEARCH_LOLIPOP_PORT=tcp://172.17.0.1:9200
+#   DOKKU_ELASTICSEARCH_LOLIPOP_PORT_9200_TCP=tcp://172.17.0.1:9200
+#   DOKKU_ELASTICSEARCH_LOLIPOP_PORT_9200_TCP_PROTO=tcp
+#   DOKKU_ELASTICSEARCH_LOLIPOP_PORT_9200_TCP_PORT=9200
+#   DOKKU_ELASTICSEARCH_LOLIPOP_PORT_9200_TCP_ADDR=172.17.0.1
+#
+# and the following will be set on the linked application by default
+#
+#   ELASTICSEARCH_URL=http://dokku-elasticsearch-lolipop:9200
+#
+# NOTE: the host exposed here only works internally in docker containers. If
+# you want your container to be reachable from outside, you should use `expose`.
 
-# you can examine the environment variables
-# using our 'playground' app's env command
-dokku run playground env
+# another service can be linked to your app
+dokku elasticsearch:link other_service playground
 
-# you can customize the prefix of environment
-# variables through a custom docker link alias
-dokku elasticsearch:alias lolipop DATABASE
+# you could install elasticsearch plugins
+dokku elasticsearch:plugin:install lolipop delete-by-query
+# to install plugins from a URL use
+dokku elasticsearch:plugin:install lolipop https://github.com/your/favourite-plugin.jar favourite-plugin
 
-# you can also unlink a elasticsearch service
+# as expected, you could also uninstall them
+dokku elasticsearch:plugin:uninstall lolipop delete-by-query
+
+# since ELASTICSEARCH_URL is already in use, another environment variable will be
+# generated automatically
+#
+#   DOKKU_ELASTICSEARCH_BLUE_URL=http://dokku-elasticsearch-other-service:9200
+
+# you can then promote the new service to be the primary one
 # NOTE: this will restart your app
+dokku elasticsearch:promote other_service playground
+
+# this will replace ELASTICSEARCH_URL with the url from other_service and generate
+# another environment variable to hold the previous value if necessary.
+# you could end up with the following for example:
+#
+#   ELASTICSEARCH_URL=http://dokku-elasticsearch-other-service:9200
+#   DOKKU_ELASTICSEARCH_BLUE_URL=http://dokku-elasticsearch-other-service:9200
+#   DOKKU_ELASTICSEARCH_SILVER_URL=http://dokku-elasticsearch-lolipop:9200
+
+# you can also unlink an elasticsearch service
+# NOTE: this will restart your app and unset related environment variables
 dokku elasticsearch:unlink lolipop playground
 
 # you can tail logs for a particular service

@@ -15,21 +15,18 @@ if [[ $1 == $PLUGIN_COMMAND_PREFIX:* ]]; then
   fi
 fi
 
-case "$1" in
-  $PLUGIN_COMMAND_PREFIX:alias)
-    [[ -z $2 ]] && dokku_log_fail "Please specify a name for the service"
-    [[ -z $3 ]] && dokku_log_fail "Please specify an alias for the service"
-    verify_service_name "$2"
-    service_set_alias "$2" "$3"
-    ;;
+if [[ -d "$PLUGIN_DATA_ROOT/*" ]]; then
+  rm -rf "$PLUGIN_DATA_ROOT/*"
+fi
 
+case "$1" in
   $PLUGIN_COMMAND_PREFIX:create)
     [[ -z $2 ]] && dokku_log_fail "Please specify a name for the service"
     [[ ! -d "$PLUGIN_DATA_ROOT/$2" ]] || dokku_log_fail "$PLUGIN_SERVICE service $2 already exists"
     SERVICE="$2"; SERVICE_ROOT="$PLUGIN_DATA_ROOT/$SERVICE"; LINKS_FILE="$SERVICE_ROOT/LINKS"; SERVICE_CONFIGURATION="$(dirname "$0")/elasticsearch.yml.template"; LOGGING_CONFIGURATION="$(dirname "$0")/logging.yml.template"
 
     if ! docker images | grep -e "^$PLUGIN_IMAGE " | grep -q " $PLUGIN_IMAGE_VERSION " ; then
-      dokku_log_fail "$PLUGIN_SERVICE image $PLUGIN_IMAGE:$PLUGIN_IMAGE_VERSION not found"
+      docker pull "$PLUGIN_IMAGE:$PLUGIN_IMAGE_VERSION" || dokku_log_fail "$PLUGIN_SERVICE image $PLUGIN_IMAGE:$PLUGIN_IMAGE_VERSION not found"
     fi
 
     mkdir -p "$SERVICE_ROOT" || dokku_log_fail "Unable to create service directory"
@@ -48,7 +45,7 @@ case "$1" in
     cp -f "$LOGGING_CONFIGURATION" "$SERVICE_ROOT/config/logging.yml"
 
     SERVICE_NAME=$(get_service_name "$SERVICE")
-    ID=$(docker run --name "$SERVICE_NAME" -v "$SERVICE_ROOT/data:/usr/share/elasticsearch/data" -v "$SERVICE_ROOT/config:/usr/share/elasticsearch/config" -d --restart always --label dokku=service --label dokku.service=elasticsearch "$PLUGIN_IMAGE:$PLUGIN_IMAGE_VERSION")
+    ID=$(docker run --name "$SERVICE_NAME" -v "$SERVICE_ROOT/data:/usr/share/elasticsearch/data" -v "$SERVICE_ROOT/config:/usr/share/elasticsearch/config" --env-file="$SERVICE_ROOT/ENV" -d --restart always --label dokku=service --label dokku.service=elasticsearch "$PLUGIN_IMAGE:$PLUGIN_IMAGE_VERSION")
     echo "$ID" > "$SERVICE_ROOT/ID"
 
     dokku_log_verbose_quiet "Waiting for container to be ready"
@@ -81,26 +78,20 @@ case "$1" in
     fi
 
     dokku_log_info1 "Deleting $SERVICE"
-    if [[ -f "$SERVICE_ROOT/ID" ]] && docker ps -aq --no-trunc | grep -q "$(cat "$SERVICE_ROOT/ID")"; then
-      ID=$(cat "$SERVICE_ROOT/ID")
-
+    if [[ -n $(docker ps -aq -f name="$SERVICE_NAME") ]]; then
       dokku_log_verbose_quiet "Deleting container data"
-      service_start "$SERVICE"
-      docker run --rm --link "$SERVICE_NAME:$PLUGIN_COMMAND_PREFIX" dokkupaas/wait > /dev/null
-      docker exec -it "$ID" curl -XDELETE 'http://localhost:9200/_all' > /dev/null
-      docker exec -it "$ID" chmod -R 777 /usr/share/elasticsearch/data
-
       service_stop "$SERVICE"
       sleep 1
 
       dokku_log_verbose_quiet "Removing container"
-      docker rm -v "$ID" > /dev/null
+      docker rm -v "$SERVICE_NAME" > /dev/null
       sleep 1
     else
       dokku_log_verbose_quiet "No container exists for $SERVICE"
     fi
 
     dokku_log_verbose_quiet "Removing data"
+    docker run --rm -v "$SERVICE_ROOT/data:/data" "$PLUGIN_IMAGE:$PLUGIN_IMAGE_VERSION" chmod 777 -R /data
     rm -rf "$SERVICE_ROOT"
 
     dokku_log_info2 "$PLUGIN_SERVICE container deleted: $SERVICE"
@@ -120,6 +111,31 @@ case "$1" in
     verify_app_name "$3"
     verify_service_name "$2"
     service_unlink "$2" "$3"
+    ;;
+
+  $PLUGIN_COMMAND_PREFIX:plugin:install)
+    [[ -z $2 ]] && dokku_log_fail "Please specify the service"
+    [[ -z $3 ]] && dokku_log_fail "Please specify the plugin name"
+    verify_service_name "$2"
+    SERVICE="$2"
+    case "$3" in
+      https:*|http:*)
+        [[ "$#" != 4 ]] && dokku_log_fail "Please specify both URL and the name of the plugin"
+        shift
+        install_plugin_with_url "$@"
+        ;;
+      *)
+        install_plugin "$SERVICE" "$3"
+        ;;
+    esac
+    ;;
+
+  $PLUGIN_COMMAND_PREFIX:plugin:uninstall)
+    [[ -z $2 ]] && dokku_log_fail "Please specify the service"
+    [[ -z $3 ]] && dokku_log_fail "Please specify the plugin name"
+    verify_service_name "$2"
+    SERVICE="$2"
+    uninstall_plugin "$SERVICE" "$3"
     ;;
 
   $PLUGIN_COMMAND_PREFIX:export)
@@ -202,15 +218,25 @@ case "$1" in
     service_port_unexpose "$2"
     ;;
 
+  $PLUGIN_COMMAND_PREFIX:promote)
+    [[ -z $2 ]] && dokku_log_fail "Please specify a name for the service"
+    [[ -z $3 ]] && dokku_log_fail "Please specify an app to run the command on"
+    verify_service_name "$2"
+    verify_app_name "$3"
+    promote "$2" "$3"
+    ;;
+
   help | $PLUGIN_COMMAND_PREFIX:help)
     HELP=$(cat<<EOF
-    $PLUGIN_COMMAND_PREFIX:alias <name> <alias>, Set an alias for the docker link
     $PLUGIN_COMMAND_PREFIX:create <name>, Create a $PLUGIN_SERVICE service
     $PLUGIN_COMMAND_PREFIX:destroy <name>, Delete the $PLUGIN_SERVICE service and stop its container if there are no links left
     $PLUGIN_COMMAND_PREFIX:link <name> <app>, Link the $PLUGIN_SERVICE service to the app
     $PLUGIN_COMMAND_PREFIX:unlink <name> <app>, Unlink the $PLUGIN_SERVICE service from the app
     $PLUGIN_COMMAND_PREFIX:export <name>, NOT IMPLEMENTED
     $PLUGIN_COMMAND_PREFIX:import <name> <file>, NOT IMPLEMENTED
+    $PLUGIN_COMMAND_PREFIX:plugin:install <name> [url] <plugin>, Install $PLUGIN_SERVICE plugin
+    $PLUGIN_COMMAND_PREFIX:plugin:uninstall <name> <plugin>, Uninstall $PLUGIN_SERVICE plugin
+    $PLUGIN_COMMAND_PREFIX:plugin:list <name>, NOT IMPLEMENTED
     $PLUGIN_COMMAND_PREFIX:connect <name>, NOT IMPLEMENTED
     $PLUGIN_COMMAND_PREFIX:logs <name> [-t], Print the most recent log(s) for this service
     $PLUGIN_COMMAND_PREFIX:restart <name>, Graceful shutdown and restart of the $PLUGIN_SERVICE service container
@@ -221,6 +247,7 @@ case "$1" in
     $PLUGIN_COMMAND_PREFIX:unexpose <name>, Unexpose a previously exposed $PLUGIN_SERVICE service
     $PLUGIN_COMMAND_PREFIX:start <name>, Start a previously stopped $PLUGIN_SERVICE service
     $PLUGIN_COMMAND_PREFIX:stop <name>, Stop a running $PLUGIN_SERVICE service
+    $PLUGIN_COMMAND_PREFIX:promote <name> <app>, Promote service <name> as ${PLUGIN_DEFAULT_ALIAS}_URL in <app>
 EOF
 )
     if [[ -n $DOKKU_API_VERSION ]]; then
