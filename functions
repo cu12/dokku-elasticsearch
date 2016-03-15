@@ -51,6 +51,13 @@ uninstall_plugin() {
   docker exec -t "$ID" /usr/share/elasticsearch/bin/plugin -r "$PLUGIN_NAME"
 }
 
+list_plugins() {
+  local SERVICE="$1"
+  local SERVICE_ROOT="$PLUGIN_DATA_ROOT/$SERVICE"
+  local ID=$(cat "$SERVICE_ROOT/ID")
+  docker exec -t "$ID" /usr/share/elasticsearch/bin/plugin -l
+}
+
 verify_service_name() {
   local SERVICE="$1"
   [[ ! -n "$SERVICE" ]] && dokku_log_fail "(verify_service_name) SERVICE must not be null"

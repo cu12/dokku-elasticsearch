@@ -35,7 +35,7 @@ elasticsearch:list                                  List all elasticsearch servi
 elasticsearch:logs <name> [-t]                      Print the most recent log(s) for this service
 elasticsearch:plugin:install <name> [url] <plugin>  Install elasticsearch plugin
 elasticsearch:plugin:uninstall <name> <plugin>      Uninstall elasticsearch plugin
-elasticsearch:plugin:list <name>                    NOT IMPLEMENTED
+elasticsearch:plugin:list <name>                    List installed elasticsearch plugins
 elasticsearch:promote <name> <app>                  Promote service <name> as ELASTICSEARCH_URL in <app>
 elasticsearch:restart <name>                        Graceful shutdown and restart of the elasticsearch service container
 elasticsearch:start <name>                          Start a previously stopped elasticsearch service
