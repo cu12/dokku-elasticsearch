@@ -1,0 +1,2 @@
+discovery.zen.ping.multicast.enabled=false
+node.local=true
