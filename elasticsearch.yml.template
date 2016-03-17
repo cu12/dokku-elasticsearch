@@ -1,2 +1,3 @@
 discovery.zen.ping.multicast.enabled: false
 node.local: true
+index.recovery.initial_shards: 1
