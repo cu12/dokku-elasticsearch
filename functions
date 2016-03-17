@@ -31,6 +31,7 @@ install_plugin_with_url() {
   local PLUGIN_NAME="$3"
   dokku_log_info1_quiet "Installing plugin repo $PLUGIN_GIT_URL to Elasticsearch as $PLUGIN_NAME"
   docker exec -t "$ID" /usr/share/elasticsearch/bin/plugin --url "$PLUGIN_GIT_URL" --install "$PLUGIN_NAME"
+  dokku_log_info1 "Please call dokku elasticsearch:restart on $SERVICE"
 }
 
 install_plugin() {
@@ -40,6 +41,7 @@ install_plugin() {
   local PLUGIN_NAME="$2"
   dokku_log_info1_quiet "Installing plugin to Elasticsearch as $PLUGIN_NAME"
   docker exec -t "$ID" /usr/share/elasticsearch/bin/plugin -i "$PLUGIN_NAME"
+  dokku_log_info1 "Please call dokku elasticsearch:restart on $SERVICE"
 }
 
 uninstall_plugin() {
